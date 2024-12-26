@@ -1,47 +1,52 @@
-import requests
-from bs4 import BeautifulSoup as bs
+from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException
+from sqlalchemy.orm import Session
+from database import Database
+from models import Item
+from parser import parse_and_save
 
 
-def get_responce(search, page):
-    url = f"https://www.maxidom.ru/search/catalog/?q={search}&amount=30&PAGEN_10={page}"
-    response = requests.get(url).text
-    soup = bs(response, "html.parser")
-    return soup
+# Инициализация FastAPI
+app = FastAPI()
+
+# Инициализация сессии
+session : Session = None
 
 
-def get_names_and_prices(soup):
-    all_names = soup.findAll(itemprop="name")[1:]
-    all_prices = soup.findAll(class_="l-product__price-base")
-    return all_names, all_prices
+@app.on_event("startup")
+async def startup_event():
+    # Инициализация базы данных
+    global session
+    db = Database()
+    session = db.Session()
+    db.create_db()
 
 
-def print_page(all_names, all_prices, page):
-    print("- - - " * 17)
-    print(f"Название{89 * " "}Цена")
-    print("- - - " * 17)
-
-    for a, b in zip(all_names, all_prices):
-        name = a.text
-        price = b.text.replace(" ", "").replace("\n", "")
-        if len(name) < 75:
-            print(f"{name}{(101 - len(name) - len(price)) * " "}{price}")
-        else:
-            print(f"{name[:75] + "..."}{(98 - len(name[:75]) - len(price)) * " "}{price}")
-
-    print("- - - " * 17)
-    print(f"{" " * (91 - len(str(page)))}Страница: {page}")
-    print("- - - " * 17)
+# Эндпоинты API
+@app.post("/parse/")
+async def start_parsing(background_tasks: BackgroundTasks):
+    """Парсинг в фоне"""
+    background_tasks.add_task(parse_and_save, session)
+    return {"message": parse_and_save(session)}
 
 
-def main():
-    search = input("Введите наименование товара: ")
-    soup = get_responce(search, page = 1)
-    pages_count = int(soup.find(class_="lvl2__content-nav-numbers-number").text.split()[-1])
+@app.put("/items/{item_id}")
+async def update_item(item_id: int, name: str, price: float):
+    """Редактирование товара"""
+    item = session.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+    item.name = name
+    item.price = price
+    session.commit()
+    return {"message": "Товар успешно изменен"}
 
-    for page in range(1, pages_count + 1):
-        soup = get_responce(search, page)
-        all_names, all_prices = get_names_and_prices(soup)
-        print_page(all_names, all_prices, page)
 
-
-main()
+@app.delete("/items/{item_id}")
+async def delete_item(item_id: int):
+    """Удаление товара"""
+    item = session.query(Item).filter(Item.id == item_id).first()
+    if not item:
+        raise HTTPException(status_code=404, detail="Товар не найден")
+    session.delete(item)
+    session.commit()
+    return {"message": "Товар успешно удален"}
