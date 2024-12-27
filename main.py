@@ -1,10 +1,14 @@
-from fastapi import FastAPI, BackgroundTasks, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, BackgroundTasks, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import HTMLResponse
 from sqlalchemy.orm import Session
 from apscheduler.schedulers.background import BackgroundScheduler
 from database import Database
 from models import Item
 from parser import parse_and_save
 from typing import List
+
+connected_clients: list[WebSocket] = []
+
 
 class ConnectionManager:
     def __init__(self):
@@ -30,6 +34,18 @@ manager = ConnectionManager()
 # Инициализация базы данных
 session: Session = None
 
+async def parse_and_notify():
+    """Функция для парсинга и отправки уведомлений через WebSocket"""
+    parse_and_save(session)
+    await manager.send_message("Данные успешно обновлены!")
+
+
+# Планировщик для автоматического запуска парсера каждый час
+scheduler = BackgroundScheduler()
+scheduler.add_job(parse_and_notify, 'interval', hours=1)
+scheduler.start()
+
+
 @app.on_event("startup")
 async def startup_event():
     global session
@@ -37,15 +53,12 @@ async def startup_event():
     session = db.Session()
     db.create_db()
 
-    # Планировщик для автоматического запуска парсера каждый час
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(parse_and_notify, 'interval', hours=1)
-    scheduler.start()
 
-async def parse_and_notify():
-    """Функция для парсинга и отправки уведомлений через WebSocket"""
-    parse_and_save(session)
-    await manager.send_message("Данные успешно обновлены!")
+@app.on_event("shutdown")
+async def shutdown_event():
+    scheduler.shutdown()
+    session.close()
+
 
 @app.post("/parse/")
 async def start_parsing(background_tasks: BackgroundTasks):
@@ -85,3 +98,29 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket.receive_text()
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+
+@app.get("/", response_class=HTMLResponse)
+async def get():
+    html_content = """
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>WebSocket Client</title>
+    </head>
+    <body>
+        <h1>WebSocket Уведомления</h1>
+        <div id="messages"></div>
+        <script>
+            const ws = new WebSocket("ws://localhost:8000/ws");
+            const messagesDiv = document.getElementById("messages");
+
+            ws.onmessage = function(event) {
+                const message = document.createElement("div");
+                message.textContent = event.data;
+                messagesDiv.appendChild(message);
+            };
+        </script>
+    </body>
+    </html>
+    """
+    return HTMLResponse(content=html_content)
