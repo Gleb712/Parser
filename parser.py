@@ -21,8 +21,7 @@ def get_response(page: int, search: str):
     if response.status_code == 200:
         return bs(response.text, "html.parser")
     else:
-        return None
-        #raise Exception(f"Ошибка при запросе: {response.status_code}")
+        raise Exception(f"Ошибка при запросе: {response.status_code}")
 
 
 # Получение названий и цен
@@ -55,4 +54,3 @@ def parse_and_save(session: Session):
         all_names, all_prices = get_names_and_prices(soup)
         save_to_database(all_names, all_prices, session)
         print(f"Страница {page} обработана")
-    return "Success"

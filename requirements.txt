@@ -1,5 +1,6 @@
-fastapi
-uvicorn
-sqlalchemy
-requests
-beautifulsoup4
+fastapi==0.95.2
+uvicorn==0.22.0
+sqlalchemy==2.0.20
+requests==2.31.0
+beautifulsoup4==4.13.0
+apscheduler==3.9.1
