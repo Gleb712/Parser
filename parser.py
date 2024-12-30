@@ -12,7 +12,6 @@ def get_page_count():
     page_count = int(soup.find(class_="lvl2__content-nav-numbers-number").text.split()[-1])
     return page_count
 
-
 # Запрос страницы и получение HTML
 def get_response(page: int, search: str):
     url = f"https://www.maxidom.ru/search/catalog/?q={search}&amount=30&PAGEN_10={page}"
@@ -23,13 +22,11 @@ def get_response(page: int, search: str):
     else:
         raise Exception(f"Ошибка при запросе: {response.status_code}")
 
-
 # Получение названий и цен
 def get_names_and_prices(soup: bs):
     all_names = soup.findAll(itemprop="name")[1:]
     all_prices = soup.findAll(class_="l-product__price-base")
     return all_names, all_prices
-
 
 # Сохранение товаров в базу данных
 def save_to_database(all_names, all_prices, session):
@@ -41,7 +38,6 @@ def save_to_database(all_names, all_prices, session):
             new_item = Item(name=item_name, price=item_price)
             session.add(new_item)
     session.commit()
-
 
 # Основная функция для парсинга и сохранения
 def parse_and_save(session: Session):

@@ -8,6 +8,5 @@ class Database:
     Session = sessionmaker(autocommit=False, autoflush=False, bind=engine)
     Base = declarative_base()
 
-
     def create_db(self):
         self.Base.metadata.create_all(bind=self.engine)
