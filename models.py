@@ -3,6 +3,7 @@ from database import Database
 
 
 class Item(Database.Base):
+    # Модель базы данных с описанием полей
     __tablename__ = "items"
 
     id = Column(Integer, primary_key=True)
